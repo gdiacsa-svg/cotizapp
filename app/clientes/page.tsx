@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../../lib/supabase";
 
 type Cliente = {
   id: number;
@@ -13,6 +14,24 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [busqueda, setBusqueda] = useState("");
 
+  const cargarClientes = async () => {
+    const { data, error } = await supabase
+      .from("clientes")
+      .select("id, nombre, telefono")
+      .eq("empresa_id", 1)
+      .order("id", { ascending: false });
+
+    if (error) {
+      console.log(error);
+      alert("Error al cargar clientes");
+      setLoading(false);
+      return;
+    }
+
+    setClientes(data || []);
+    setLoading(false);
+  };
+
   useEffect(() => {
     const user = localStorage.getItem("cotizapp_user");
 
@@ -21,12 +40,7 @@ export default function Clientes() {
       return;
     }
 
-    const data = JSON.parse(
-      localStorage.getItem("cotizapp_clientes") || "[]"
-    ) as Cliente[];
-
-    setClientes(data);
-    setLoading(false);
+    cargarClientes();
   }, []);
 
   const clientesFiltrados = useMemo(() => {
@@ -42,17 +56,22 @@ export default function Clientes() {
     });
   }, [clientes, busqueda]);
 
-  const handleEliminar = (id: number) => {
+  const handleEliminar = async (id: number) => {
     const confirmar = window.confirm(
       "¿Seguro que quieres borrar este cliente?"
     );
 
     if (!confirmar) return;
 
-    const actualizados = clientes.filter((cliente) => cliente.id !== id);
+    const { error } = await supabase.from("clientes").delete().eq("id", id);
 
-    localStorage.setItem("cotizapp_clientes", JSON.stringify(actualizados));
-    setClientes(actualizados);
+    if (error) {
+      console.log(error);
+      alert("Error al borrar cliente");
+      return;
+    }
+
+    setClientes((prev) => prev.filter((cliente) => cliente.id !== id));
   };
 
   if (loading) {
