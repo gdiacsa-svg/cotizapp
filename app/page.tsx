@@ -54,16 +54,16 @@ export default function Home() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+      <main className="flex h-full items-center justify-center bg-slate-100">
         <p className="text-base font-medium text-slate-600">Cargando...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      {/* 🔹 BLOQUE LOGO (MISMO QUE LOGIN) */}
-      <div className="mx-auto w-full max-w-md px-4 pt-6">
+    <main className="h-full overflow-hidden bg-slate-100">
+      <div className="mx-auto flex h-full w-full max-w-md flex-col px-4 pt-6">
+        {/* BLOQUE LOGO */}
         <div
           style={{
             background: "#ffffff",
@@ -74,77 +74,78 @@ export default function Home() {
             justifyContent: "center",
             alignItems: "center",
             marginBottom: "18px",
+            flexShrink: 0,
           }}
         >
           <img
             src="/logo.png"
+            alt="Logo CotizApp"
             style={{
               width: "150px",
               height: "auto",
             }}
           />
         </div>
-      </div>
 
-      {/* 🔹 CONTENIDO */}
-      <div className="mx-auto w-full max-w-md px-4 pt-4">
-        <section className="grid grid-cols-2 gap-4">
-          <button className="rounded-2xl bg-blue-500 p-5 text-left text-white shadow-md">
-            <div className="text-2xl">+</div>
-            <div className="mt-3 text-base font-semibold">
-              Nueva cotización
-            </div>
-            <div className="mt-1 text-sm text-blue-100">
-              Empieza rápido
-            </div>
-          </button>
+        {/* CONTENIDO */}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <section className="grid grid-cols-2 gap-4">
+            <button className="rounded-2xl bg-blue-500 p-5 text-left text-white shadow-md">
+              <div className="text-2xl">+</div>
+              <div className="mt-3 text-base font-semibold">
+                Nueva cotización
+              </div>
+              <div className="mt-1 text-sm text-blue-100">
+                Empieza rápido
+              </div>
+            </button>
 
-          <button className="rounded-2xl bg-slate-900 p-5 text-left text-white shadow-md">
-            <div className="text-2xl">📄</div>
-            <div className="mt-3 text-base font-semibold">
-              Cotizaciones
-            </div>
-            <div className="mt-1 text-sm text-slate-300">
-              Ver historial
-            </div>
-          </button>
+            <button className="rounded-2xl bg-slate-900 p-5 text-left text-white shadow-md">
+              <div className="text-2xl">📄</div>
+              <div className="mt-3 text-base font-semibold">
+                Cotizaciones
+              </div>
+              <div className="mt-1 text-sm text-slate-300">
+                Ver historial
+              </div>
+            </button>
 
-          <button
-            onClick={() => (window.location.href = "/clientes")}
-            className="rounded-2xl bg-white p-5 text-left text-slate-900 shadow-md ring-1 ring-slate-200"
-          >
-            <div className="text-2xl">👤</div>
-            <div className="mt-3 text-base font-semibold">
-              Clientes
-            </div>
-            <div className="mt-1 text-sm text-slate-500">
-              Administra contactos
-            </div>
-          </button>
+            <button
+              onClick={() => (window.location.href = "/clientes")}
+              className="rounded-2xl bg-white p-5 text-left text-slate-900 shadow-md ring-1 ring-slate-200"
+            >
+              <div className="text-2xl">👤</div>
+              <div className="mt-3 text-base font-semibold">
+                Clientes
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                Administra contactos
+              </div>
+            </button>
 
-          <button
-            onClick={() => (window.location.href = "/productos")}
-            className="rounded-2xl bg-white p-5 text-left text-slate-900 shadow-md ring-1 ring-slate-200"
-          >
-            <div className="text-2xl">🧰</div>
-            <div className="mt-3 text-base font-semibold">
-              Productos
-            </div>
-            <div className="mt-1 text-sm text-slate-500">
-              Tu catálogo base
-            </div>
-          </button>
-        </section>
+            <button
+              onClick={() => (window.location.href = "/productos")}
+              className="rounded-2xl bg-white p-5 text-left text-slate-900 shadow-md ring-1 ring-slate-200"
+            >
+              <div className="text-2xl">🧰</div>
+              <div className="mt-3 text-base font-semibold">
+                Productos
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                Tu catálogo base
+              </div>
+            </button>
+          </section>
 
-        {/* 🔹 INFO USUARIO */}
-        <section className="mt-4">
-          <div className="rounded-2xl bg-white p-4 shadow">
-            <p className="text-sm text-slate-500">Sesión:</p>
-            <p className="text-sm font-semibold text-slate-900">
-              {user?.email}
-            </p>
-          </div>
-        </section>
+          <section className="mt-4">
+            <div className="rounded-2xl bg-white p-4 shadow">
+              <p className="text-sm text-slate-500">Sesión:</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {user?.email}
+              </p>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
