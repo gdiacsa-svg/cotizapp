@@ -28,8 +28,14 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-100">
-        <div className="min-h-screen pb-28">{children}</div>
+      <body
+        className="h-screen overflow-hidden bg-slate-100"
+        style={{ margin: 0 }}
+      >
+        <div className="h-full overflow-hidden pb-24">
+          {children}
+        </div>
+
         <BottomNav />
       </body>
     </html>
