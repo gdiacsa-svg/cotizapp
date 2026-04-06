@@ -1,81 +1,104 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type Producto = {
-  id: number;
-  nombre: string;
-  precio: string;
-};
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "../../../lib/supabase";
 
 export default function EditarProducto() {
+  const router = useRouter();
+  const params = useParams();
+
   const [loading, setLoading] = useState(true);
   const [productoId, setProductoId] = useState<number | null>(null);
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
+  const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    const user = localStorage.getItem("cotizapp_user");
+    const cargarProducto = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+      if (!session?.user) {
+        router.push("/login");
+        return;
+      }
 
-    const pathParts = window.location.pathname.split("/");
-    const idString = pathParts[pathParts.length - 1];
-    const id = Number(idString);
+      const id = Number(params.id);
 
-    if (!id || Number.isNaN(id)) {
-      alert("ID inválido");
-      window.location.href = "/productos";
-      return;
-    }
+      if (!id || Number.isNaN(id)) {
+        setMensaje("ID inválido");
+        setLoading(false);
+        return;
+      }
 
-    setProductoId(id);
+      setProductoId(id);
 
-    const productos = JSON.parse(
-      localStorage.getItem("cotizapp_productos") || "[]"
-    ) as Producto[];
+      const { data, error } = await supabase
+        .from("productos")
+        .select("id, nombre, precio")
+        .eq("id", id)
+        .single();
 
-    const producto = productos.find((p) => p.id === id);
+      if (error || !data) {
+        console.log(error);
+        setMensaje("Producto no encontrado");
+        setLoading(false);
+        return;
+      }
 
-    if (!producto) {
-      alert("Producto no encontrado");
-      window.location.href = "/productos";
-      return;
-    }
+      setNombre(data.nombre || "");
+      setPrecio(String(data.precio ?? ""));
+      setLoading(false);
+    };
 
-    setNombre(producto.nombre);
-    setPrecio(producto.precio);
-    setLoading(false);
-  }, []);
+    cargarProducto();
 
-  const handleGuardar = (e: React.FormEvent) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.push("/login");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [params.id, router]);
+
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMensaje("");
 
     if (!nombre.trim() || !precio.trim() || productoId === null) {
-      alert("Completa todos los campos");
+      setMensaje("Completa todos los campos");
       return;
     }
 
-    const productos = JSON.parse(
-      localStorage.getItem("cotizapp_productos") || "[]"
-    ) as Producto[];
+    const precioNumero = Number(precio);
 
-    const actualizados = productos.map((p) =>
-      p.id === productoId
-        ? {
-            ...p,
-            nombre: nombre.trim(),
-            precio: precio.trim(),
-          }
-        : p
-    );
+    if (Number.isNaN(precioNumero)) {
+      setMensaje("El precio debe ser un número válido");
+      return;
+    }
 
-    localStorage.setItem("cotizapp_productos", JSON.stringify(actualizados));
+    const { error } = await supabase
+      .from("productos")
+      .update({
+        nombre: nombre.trim(),
+        precio: precioNumero,
+      })
+      .eq("id", productoId);
 
-    window.location.href = "/productos";
+    if (error) {
+      console.log(error);
+      setMensaje("Error al guardar cambios");
+      return;
+    }
+
+    router.push("/productos");
   };
 
   if (loading) {
@@ -89,24 +112,26 @@ export default function EditarProducto() {
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-xl">
-        <header className="bg-blue-600 px-5 pb-6 pt-10 text-white">
+        <div className="px-5 pt-6 pb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Editar producto</h1>
+            <h1 className="text-xl font-bold text-slate-900">
+              Editar producto
+            </h1>
 
             <button
-              onClick={() => (window.location.href = "/productos")}
-              className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-600"
+              onClick={() => router.push("/productos")}
+              className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               Regresar
             </button>
           </div>
 
-          <p className="mt-2 text-sm text-blue-100">
+          <p className="mt-2 text-sm text-slate-500">
             Modifica los datos del producto
           </p>
-        </header>
+        </div>
 
-        <form onSubmit={handleGuardar} className="flex-1 p-5 space-y-4">
+        <form onSubmit={handleGuardar} className="flex-1 space-y-4 p-5">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Nombre
@@ -136,6 +161,12 @@ export default function EditarProducto() {
               Precio base del producto
             </p>
           </div>
+
+          {mensaje ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+              {mensaje}
+            </div>
+          ) : null}
 
           <button
             type="submit"

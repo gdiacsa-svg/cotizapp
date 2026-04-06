@@ -1,24 +1,56 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "./lib/supabase";
+
+type AuthUser = {
+  id: string;
+  email?: string;
+};
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    const user = localStorage.getItem("cotizapp_user");
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!user) {
-      window.location.href = "/login";
-    } else {
+      if (!session?.user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setUser({
+        id: session.user.id,
+        email: session.user.email,
+      });
+
       setLoading(false);
-    }
-  }, []);
+    };
 
-  const handleLogout = () => {
-    localStorage.removeItem("cotizapp_user");
-    window.location.href = "/login";
-  };
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        window.location.href = "/login";
+      } else {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+        });
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -30,32 +62,33 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-xl">
-        <header className="bg-blue-600 px-5 pb-6 pt-10 text-white">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium opacity-90">CotizApp</p>
-              <h1 className="mt-2 text-3xl font-bold leading-tight">
-                Cotiza rápido
-                <br />
-                desde tu celular
-              </h1>
-            </div>
+      {/* 🔹 BLOQUE LOGO (MISMO QUE LOGIN) */}
+      <div className="mx-auto w-full max-w-md px-4 pt-6">
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "26px",
+            padding: "28px 20px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            marginBottom: "18px",
+          }}
+        >
+          <img
+            src="/logo.png"
+            style={{
+              width: "150px",
+              height: "auto",
+            }}
+          />
+        </div>
+      </div>
 
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-600 shadow"
-            >
-              Salir
-            </button>
-          </div>
-
-          <p className="mt-3 text-sm text-blue-100">
-            Crea clientes, agrega productos y genera cotizaciones profesionales.
-          </p>
-        </header>
-
-        <section className="grid grid-cols-2 gap-4 p-5">
+      {/* 🔹 CONTENIDO */}
+      <div className="mx-auto w-full max-w-md px-4 pt-4">
+        <section className="grid grid-cols-2 gap-4">
           <button className="rounded-2xl bg-blue-500 p-5 text-left text-white shadow-md">
             <div className="text-2xl">+</div>
             <div className="mt-3 text-base font-semibold">
@@ -103,40 +136,13 @@ export default function Home() {
           </button>
         </section>
 
-        <section className="px-5 pb-6">
-          <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+        {/* 🔹 INFO USUARIO */}
+        <section className="mt-4">
+          <div className="rounded-2xl bg-white p-4 shadow">
+            <p className="text-sm text-slate-500">Sesión:</p>
             <p className="text-sm font-semibold text-slate-900">
-              Actividad rápida
+              {user?.email}
             </p>
-
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                <span className="text-sm text-slate-600">
-                  Cotizaciones hoy
-                </span>
-                <span className="text-lg font-bold text-slate-900">
-                  0
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                <span className="text-sm text-slate-600">
-                  Clientes registrados
-                </span>
-                <span className="text-lg font-bold text-slate-900">
-                  0
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                <span className="text-sm text-slate-600">
-                  Productos activos
-                </span>
-                <span className="text-lg font-bold text-slate-900">
-                  0
-                </span>
-              </div>
-            </div>
           </div>
         </section>
       </div>

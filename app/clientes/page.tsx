@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 
 type Cliente = {
@@ -9,21 +10,44 @@ type Cliente = {
   telefono: string;
 };
 
-export default function Clientes() {
+type ItemLista =
+  | { tipo: "letra"; letra: string }
+  | { tipo: "cliente"; cliente: Cliente };
+
+export default function ClientesPage() {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [mensaje, setMensaje] = useState("");
+
+  const normalizarTexto = (texto: string) => {
+    return (texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  };
+
+  const obtenerInicial = (nombre: string) => {
+    const limpio = normalizarTexto(nombre);
+    const primera = limpio.charAt(0).toUpperCase();
+    return /^[A-Z]$/.test(primera) ? primera : "#";
+  };
 
   const cargarClientes = async () => {
+    setMensaje("");
+
     const { data, error } = await supabase
       .from("clientes")
       .select("id, nombre, telefono")
       .eq("empresa_id", 1)
-      .order("id", { ascending: false });
+      .order("nombre", { ascending: true });
 
     if (error) {
       console.log(error);
-      alert("Error al cargar clientes");
+      setMensaje("Error al cargar clientes");
       setLoading(false);
       return;
     }
@@ -33,28 +57,63 @@ export default function Clientes() {
   };
 
   useEffect(() => {
-    const user = localStorage.getItem("cotizapp_user");
+    const validarSesion = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+      if (!session?.user) {
+        router.push("/login");
+        return;
+      }
 
-    cargarClientes();
-  }, []);
+      await cargarClientes();
+    };
+
+    validarSesion();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.push("/login");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const clientesFiltrados = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase();
+    const texto = normalizarTexto(busqueda);
 
     if (!texto) return clientes;
 
     return clientes.filter((cliente) => {
-      const nombre = cliente.nombre.toLowerCase();
-      const telefono = cliente.telefono.toLowerCase();
-
+      const nombre = normalizarTexto(cliente.nombre || "");
+      const telefono = normalizarTexto(cliente.telefono || "");
       return nombre.includes(texto) || telefono.includes(texto);
     });
   }, [clientes, busqueda]);
+
+  const itemsLista = useMemo(() => {
+    const items: ItemLista[] = [];
+    let letraActual = "";
+
+    for (const cliente of clientesFiltrados) {
+      const letra = obtenerInicial(cliente.nombre || "");
+
+      if (letra !== letraActual) {
+        letraActual = letra;
+        items.push({ tipo: "letra", letra });
+      }
+
+      items.push({ tipo: "cliente", cliente });
+    }
+
+    return items;
+  }, [clientesFiltrados]);
 
   const handleEliminar = async (id: number) => {
     const confirmar = window.confirm(
@@ -67,7 +126,7 @@ export default function Clientes() {
 
     if (error) {
       console.log(error);
-      alert("Error al borrar cliente");
+      setMensaje("Error al borrar cliente");
       return;
     }
 
@@ -84,38 +143,60 @@ export default function Clientes() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-xl">
-        <header className="bg-blue-600 px-5 pb-6 pt-10 text-white">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Clientes</h1>
+      <div className="mx-auto w-full max-w-md px-4 pt-6 pb-6">
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "26px",
+            padding: "24px 20px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+            marginBottom: "18px",
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "30px",
+              lineHeight: 1.1,
+              fontWeight: 800,
+              color: "#0f172a",
+              marginBottom: "8px",
+            }}
+          >
+            Clientes
+          </h1>
 
-            <button
-              onClick={() => (window.location.href = "/")}
-              className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-600"
-            >
-              Volver
-            </button>
-          </div>
-
-          <p className="mt-2 text-sm text-blue-100">
+          <p
+            style={{
+              margin: 0,
+              fontSize: "14px",
+              color: "#64748b",
+            }}
+          >
             Administra tus clientes
           </p>
-        </header>
+        </div>
 
-        <section className="p-5 pb-3">
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "26px",
+            padding: "22px 18px 20px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+          }}
+        >
           <button
-            onClick={() => (window.location.href = "/clientes/nuevo")}
+            onClick={() => router.push("/clientes/nuevo")}
             className="w-full rounded-xl bg-blue-600 p-3 font-semibold text-white"
           >
             + Nuevo cliente
           </button>
-        </section>
 
-        <section className="px-5 pb-3">
-          <div>
+          <div className="mt-5">
             <label className="text-sm font-medium text-slate-700">
               Buscar cliente
             </label>
+
             <input
               type="text"
               value={busqueda}
@@ -123,55 +204,162 @@ export default function Clientes() {
               placeholder="Escribe nombre o teléfono"
               className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-black outline-none focus:ring-2 focus:ring-blue-500"
             />
+
             <p className="mt-1 text-xs text-blue-500">
               La lista se filtra automáticamente mientras escribes
             </p>
           </div>
-        </section>
 
-        <section className="flex-1 space-y-3 px-5 pb-5">
-          {clientes.length === 0 && (
-            <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <p className="text-sm text-slate-500">No hay clientes aún</p>
-            </div>
-          )}
-
-          {clientes.length > 0 && clientesFiltrados.length === 0 && (
-            <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <p className="text-sm text-slate-500">
-                No se encontraron clientes con esa búsqueda
-              </p>
-            </div>
-          )}
-
-          {clientesFiltrados.map((cliente) => (
+          {mensaje ? (
             <div
-              key={cliente.id}
-              className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200"
+              style={{
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                border: "1px solid #bfdbfe",
+                borderRadius: "16px",
+                padding: "12px 14px",
+                fontSize: "14px",
+                marginTop: "16px",
+              }}
             >
-              <p className="font-semibold text-slate-900">{cliente.nombre}</p>
-              <p className="text-sm text-slate-500">{cliente.telefono}</p>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() =>
-                    (window.location.href = `/clientes/editar/${cliente.id}`)
-                  }
-                  className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
-                >
-                  Editar
-                </button>
-
-                <button
-                  onClick={() => handleEliminar(cliente.id)}
-                  className="w-full rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white"
-                >
-                  Borrar
-                </button>
-              </div>
+              {mensaje}
             </div>
-          ))}
-        </section>
+          ) : null}
+
+          <section
+            className="mt-5"
+            style={{
+              maxHeight: "260px",
+              overflowY: "auto",
+              paddingRight: "4px",
+            }}
+          >
+            <div className="space-y-3">
+              {clientes.length === 0 && (
+                <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <p className="text-sm text-slate-500">No hay clientes aún</p>
+                </div>
+              )}
+
+              {clientes.length > 0 && clientesFiltrados.length === 0 && (
+                <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <p className="text-sm text-slate-500">
+                    No se encontraron clientes con esa búsqueda
+                  </p>
+                </div>
+              )}
+
+              {itemsLista.map((item, index) => {
+                if (item.tipo === "letra") {
+                  return (
+                    <div
+                      key={`letra-${item.letra}-${index}`}
+                      style={{
+                        padding: "2px 4px 0",
+                        fontSize: "13px",
+                        fontWeight: 800,
+                        color: "#2563eb",
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {item.letra}
+                    </div>
+                  );
+                }
+
+                const cliente = item.cliente;
+
+                return (
+                  <div
+                    key={cliente.id}
+                    className="rounded-2xl bg-white px-3 py-3 shadow ring-1 ring-slate-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate"
+                          style={{
+                            margin: 0,
+                            fontSize: "15px",
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            lineHeight: 1.2,
+                            marginBottom: "4px",
+                          }}
+                        >
+                          {cliente.nombre}
+                        </p>
+
+                        <p
+                          className="truncate"
+                          style={{
+                            margin: 0,
+                            fontSize: "15px",
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {cliente.telefono}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          onClick={() =>
+                            router.push(`/clientes/editar/${cliente.id}`)
+                          }
+                          style={{
+                            height: "34px",
+                            borderRadius: "999px",
+                            border: "1px solid #bfdbfe",
+                            background: "#eff6ff",
+                            color: "#2563eb",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            padding: "0 10px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span style={{ fontSize: "13px", lineHeight: 1 }}>
+                            ✏️
+                          </span>
+                          <span>Editar</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleEliminar(cliente.id)}
+                          style={{
+                            height: "34px",
+                            borderRadius: "999px",
+                            border: "1px solid #fecaca",
+                            background: "#fef2f2",
+                            color: "#dc2626",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            padding: "0 10px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span style={{ fontSize: "13px", lineHeight: 1 }}>
+                            🗑️
+                          </span>
+                          <span>Borrar</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );

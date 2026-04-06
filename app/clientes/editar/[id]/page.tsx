@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "../../../lib/supabase";
 
 type Cliente = {
   id: number;
@@ -9,76 +11,99 @@ type Cliente = {
 };
 
 export default function EditarCliente() {
+  const router = useRouter();
+  const params = useParams();
+
   const [loading, setLoading] = useState(true);
   const [clienteId, setClienteId] = useState<number | null>(null);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    const user = localStorage.getItem("cotizapp_user");
+    const cargarCliente = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+      if (!session?.user) {
+        router.push("/login");
+        return;
+      }
 
-    // Obtener ID desde la URL
-    const pathParts = window.location.pathname.split("/");
-    const idString = pathParts[pathParts.length - 1];
-    const id = Number(idString);
+      const id = Number(params.id);
 
-    if (!id || Number.isNaN(id)) {
-      alert("ID inválido");
-      window.location.href = "/clientes";
-      return;
-    }
+      if (!id || Number.isNaN(id)) {
+        setMensaje("ID inválido");
+        setLoading(false);
+        return;
+      }
 
-    setClienteId(id);
+      setClienteId(id);
 
-    const clientes = JSON.parse(
-      localStorage.getItem("cotizapp_clientes") || "[]"
-    ) as Cliente[];
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nombre, telefono")
+        .eq("id", id)
+        .single();
 
-    const cliente = clientes.find((c) => c.id === id);
+      if (error || !data) {
+        console.log(error);
+        setMensaje("Cliente no encontrado");
+        setLoading(false);
+        return;
+      }
 
-    if (!cliente) {
-      alert("Cliente no encontrado");
-      window.location.href = "/clientes";
-      return;
-    }
+      setNombre(data.nombre || "");
+      setTelefono(data.telefono || "");
+      setLoading(false);
+    };
 
-    setNombre(cliente.nombre);
-    setTelefono(cliente.telefono);
-    setLoading(false);
-  }, []);
+    cargarCliente();
 
-  const handleGuardar = (e: React.FormEvent) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.push("/login");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [params.id, router]);
+
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMensaje("");
 
     if (!nombre.trim() || !telefono.trim() || clienteId === null) {
-      alert("Completa todos los campos");
+      setMensaje("Completa todos los campos");
       return;
     }
 
-    const clientes = JSON.parse(
-      localStorage.getItem("cotizapp_clientes") || "[]"
-    ) as Cliente[];
+    const { error } = await supabase
+      .from("clientes")
+      .update({
+        nombre: nombre.trim(),
+        telefono: telefono.trim(),
+      })
+      .eq("id", clienteId);
 
-    const actualizados = clientes.map((c) =>
-      c.id === clienteId
-        ? { ...c, nombre: nombre.trim(), telefono: telefono.trim() }
-        : c
-    );
+    if (error) {
+      console.log(error);
+      setMensaje("Error al guardar cambios");
+      return;
+    }
 
-    localStorage.setItem("cotizapp_clientes", JSON.stringify(actualizados));
-
-    window.location.href = "/clientes";
+    router.push("/clientes");
   };
 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p>Cargando...</p>
+        <p className="text-base font-medium text-slate-600">Cargando...</p>
       </main>
     );
   }
@@ -86,24 +111,26 @@ export default function EditarCliente() {
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-xl">
-        <header className="bg-blue-600 px-5 pb-6 pt-10 text-white">
+        <div className="px-5 pt-6 pb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Editar cliente</h1>
+            <h1 className="text-xl font-bold text-slate-900">
+              Editar cliente
+            </h1>
 
             <button
-              onClick={() => (window.location.href = "/clientes")}
-              className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-600"
+              onClick={() => router.push("/clientes")}
+              className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               Volver
             </button>
           </div>
 
-          <p className="mt-2 text-sm text-blue-100">
+          <p className="mt-2 text-sm text-slate-500">
             Modifica los datos del cliente
           </p>
-        </header>
+        </div>
 
-        <form onSubmit={handleGuardar} className="flex-1 p-5 space-y-4">
+        <form onSubmit={handleGuardar} className="flex-1 space-y-4 p-5">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Nombre
@@ -133,6 +160,12 @@ export default function EditarCliente() {
               Número principal de contacto
             </p>
           </div>
+
+          {mensaje ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+              {mensaje}
+            </div>
+          ) : null}
 
           <button
             type="submit"

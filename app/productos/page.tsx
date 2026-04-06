@@ -1,158 +1,166 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../lib/supabase";
 
 type Producto = {
   id: number;
   nombre: string;
-  precio: string;
+  precio: number;
 };
 
-export default function Productos() {
+export default function ProductosPage() {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [busqueda, setBusqueda] = useState("");
 
-  useEffect(() => {
-    const user = localStorage.getItem("cotizapp_user");
+  const normalizarTexto = (texto: string) =>
+    (texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
 
-    if (!user) {
-      window.location.href = "/login";
+  const cargarProductos = async () => {
+    const { data, error } = await supabase
+      .from("productos")
+      .select("id, nombre, precio")
+      .order("nombre", { ascending: true });
+
+    if (error) {
+      console.log(error);
       return;
     }
 
-    const data = JSON.parse(
-      localStorage.getItem("cotizapp_productos") || "[]"
-    ) as Producto[];
-
-    setProductos(data);
+    setProductos(data || []);
     setLoading(false);
-  }, []);
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        router.push("/login");
+        return;
+      }
+
+      await cargarProductos();
+    };
+
+    init();
+  }, [router]);
 
   const productosFiltrados = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase();
+    const texto = normalizarTexto(busqueda);
 
     if (!texto) return productos;
 
-    return productos.filter((producto) => {
-      const nombre = producto.nombre.toLowerCase();
-      const precio = producto.precio.toLowerCase();
-
-      return nombre.includes(texto) || precio.includes(texto);
+    return productos.filter((p) => {
+      return (
+        normalizarTexto(p.nombre).includes(texto) ||
+        String(p.precio).includes(texto)
+      );
     });
   }, [productos, busqueda]);
 
-  const handleEliminar = (id: number) => {
-    const confirmar = window.confirm(
-      "¿Seguro que quieres borrar este producto?"
-    );
+  const handleEliminar = async (id: number) => {
+    if (!confirm("¿Borrar producto?")) return;
 
-    if (!confirmar) return;
+    await supabase.from("productos").delete().eq("id", id);
 
-    const actualizados = productos.filter((producto) => producto.id !== id);
-
-    localStorage.setItem("cotizapp_productos", JSON.stringify(actualizados));
-    setProductos(actualizados);
+    setProductos((prev) => prev.filter((p) => p.id !== id));
   };
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-base font-medium text-slate-600">Cargando...</p>
+      <main className="flex min-h-screen items-center justify-center">
+        Cargando...
       </main>
     );
   }
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-xl">
-        <header className="bg-blue-600 px-5 pb-6 pt-10 text-white">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Productos</h1>
+      <div className="mx-auto w-full max-w-md px-4 pt-6 pb-6">
 
-            <button
-              onClick={() => (window.location.href = "/")}
-              className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-600"
-            >
-              Regresar
-            </button>
-          </div>
-
-          <p className="mt-2 text-sm text-blue-100">
-            Administra tu catálogo de productos
+        {/* HEADER */}
+        <div className="bg-white rounded-2xl p-5 mb-4 shadow">
+          <h1 className="text-2xl font-bold text-black">Productos</h1>
+          <p className="text-sm text-slate-500">
+            Administra tu catálogo
           </p>
-        </header>
+        </div>
 
-        <section className="p-5 pb-3">
+        {/* CONTENIDO */}
+        <div className="bg-white rounded-2xl p-4 shadow">
+
           <button
-            onClick={() => (window.location.href = "/productos/nuevo")}
-            className="w-full rounded-xl bg-blue-600 p-3 font-semibold text-white"
+            onClick={() => router.push("/productos/nuevo")}
+            className="w-full bg-blue-600 text-white rounded-xl p-3 font-semibold"
           >
             + Nuevo producto
           </button>
-        </section>
 
-        <section className="px-5 pb-3">
-          <div>
-            <label className="text-sm font-medium text-slate-700">
-              Buscar producto
-            </label>
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Escribe nombre o precio"
-              className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-black outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="mt-1 text-xs text-blue-500">
-              La lista se filtra automáticamente mientras escribes
-            </p>
-          </div>
-        </section>
+          <input
+            type="text"
+            placeholder="Buscar producto"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="mt-4 w-full border rounded-xl p-3"
+          />
 
-        <section className="flex-1 space-y-3 px-5 pb-5">
-          {productos.length === 0 && (
-            <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <p className="text-sm text-slate-500">No hay productos aún</p>
-            </div>
-          )}
+          {/* LISTA */}
+          <div
+            className="mt-4 space-y-3"
+            style={{ maxHeight: "260px", overflowY: "auto" }}
+          >
+            {productosFiltrados.map((producto) => (
+              <div
+                key={producto.id}
+                className="flex items-center gap-2 bg-white p-3 rounded-xl shadow border"
+              >
+                {/* TEXTO */}
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-[15px] font-semibold text-black">
+                    {producto.nombre}
+                  </p>
 
-          {productos.length > 0 && productosFiltrados.length === 0 && (
-            <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <p className="text-sm text-slate-500">
-                No se encontraron productos con esa búsqueda
-              </p>
-            </div>
-          )}
+                  <p className="text-[13px] font-medium text-slate-500">
+                    ${producto.precio}
+                  </p>
+                </div>
 
-          {productosFiltrados.map((producto) => (
-            <div
-              key={producto.id}
-              className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200"
-            >
-              <p className="font-semibold text-slate-900">{producto.nombre}</p>
-              <p className="text-sm text-slate-500">${producto.precio}</p>
+                {/* BOTONES */}
+                <div className="flex gap-1">
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() =>
-                    (window.location.href = `/productos/editar/${producto.id}`)
-                  }
-                  className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
-                >
-                  Editar
-                </button>
+                  <button
+                    onClick={() =>
+                      router.push(`/productos/editar/${producto.id}`)
+                    }
+                    className="px-2 py-1 text-xs rounded-md border border-blue-200 bg-blue-50 text-blue-600"
+                  >
+                    ✏️
+                  </button>
 
-                <button
-                  onClick={() => handleEliminar(producto.id)}
-                  className="w-full rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white"
-                >
-                  Borrar
-                </button>
+                  <button
+                    onClick={() => handleEliminar(producto.id)}
+                    className="px-2 py-1 text-xs rounded-md border border-red-200 bg-red-50 text-red-600"
+                  >
+                    🗑️
+                  </button>
+
+                </div>
               </div>
-            </div>
-          ))}
-        </section>
+            ))}
+          </div>
+
+        </div>
       </div>
     </main>
   );

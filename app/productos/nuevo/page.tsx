@@ -1,48 +1,77 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
 
 export default function NuevoProducto() {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
+  const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    const user = localStorage.getItem("cotizapp_user");
+    const validarSesion = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!user) {
-      window.location.href = "/login";
-    } else {
+      if (!session?.user) {
+        router.push("/login");
+        return;
+      }
+
       setLoading(false);
-    }
-  }, []);
+    };
 
-  const handleGuardar = (e: React.FormEvent) => {
+    validarSesion();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.push("/login");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMensaje("");
 
     if (!nombre.trim() || !precio.trim()) {
-      alert("Completa todos los campos");
+      setMensaje("Completa todos los campos");
       return;
     }
 
-    const nuevoProducto = {
-      id: Date.now(),
-      nombre: nombre.trim(),
-      precio: precio.trim(),
-    };
+    const precioNumero = Number(precio);
 
-    const productosGuardados = JSON.parse(
-      localStorage.getItem("cotizapp_productos") || "[]"
-    );
+    if (Number.isNaN(precioNumero)) {
+      setMensaje("El precio debe ser un número válido");
+      return;
+    }
 
-    productosGuardados.push(nuevoProducto);
+    const { error } = await supabase.from("productos").insert([
+      {
+        empresa_id: 1,
+        nombre: nombre.trim(),
+        precio: precioNumero,
+      },
+    ]);
 
-    localStorage.setItem(
-      "cotizapp_productos",
-      JSON.stringify(productosGuardados)
-    );
+    if (error) {
+      console.log(error);
+      setMensaje("Error al guardar en Supabase");
+      return;
+    }
 
-    window.location.href = "/productos";
+    router.push("/productos");
   };
 
   if (loading) {
@@ -56,24 +85,26 @@ export default function NuevoProducto() {
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-xl">
-        <header className="bg-blue-600 px-5 pb-6 pt-10 text-white">
+        <div className="px-5 pt-6 pb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Nuevo producto</h1>
+            <h1 className="text-xl font-bold text-slate-900">
+              Nuevo producto
+            </h1>
 
             <button
-              onClick={() => (window.location.href = "/productos")}
-              className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-600"
+              onClick={() => router.push("/productos")}
+              className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               Regresar
             </button>
           </div>
 
-          <p className="mt-2 text-sm text-blue-100">
+          <p className="mt-2 text-sm text-slate-500">
             Agrega un nuevo producto o servicio
           </p>
-        </header>
+        </div>
 
-        <form onSubmit={handleGuardar} className="flex-1 p-5 space-y-4">
+        <form onSubmit={handleGuardar} className="flex-1 space-y-4 p-5">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Nombre
@@ -105,6 +136,12 @@ export default function NuevoProducto() {
               Escribe el precio base del producto
             </p>
           </div>
+
+          {mensaje ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+              {mensaje}
+            </div>
+          ) : null}
 
           <button
             type="submit"
